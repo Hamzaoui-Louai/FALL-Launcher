@@ -1,33 +1,50 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
-
 function App() {
-  const ipcHandle = () => window.electron.ipcRenderer.send('ping')
+  const handlePlay = () => {
+    // TODO: launch the game (v0.1.0) via the main process
+  }
+
+  const handleSettings = () => {
+    // TODO: open the settings UI
+  }
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
+    <div className="launcher">
+      <main className="content">
+        <header className="page-header">
+          <h1>FALL Launcher</h1>
+          <span className="version-badge">v0.1.0</span>
+        </header>
+
+        <section className="release-notes">
+          <h2>Release Notes</h2>
+          <article className="release-entry">
+            <header className="release-head">
+              <h3>v0.1.0</h3>
+              <time>First release</time>
+            </header>
+            <ul>
+              <li>Initial playable release of the game.</li>
+              <li>Placeholder game notes until real patch notes are published.</li>
+              <li>Play and Settings buttons are placeholders for now.</li>
+            </ul>
+          </article>
+        </section>
+      </main>
+
+      <footer className="bottom-bar">
+        <div className="play-zone">
+          <button className="btn btn-play" onClick={handlePlay} type="button">
+            Play
+          </button>
+          <span className="play-version">Game v0.1.0</span>
         </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
+        <div className="settings-zone">
+          <button className="btn btn-settings" onClick={handleSettings} type="button">
+            Settings
+          </button>
         </div>
-      </div>
-      <Versions></Versions>
-    </>
+      </footer>
+    </div>
   )
 }
 
