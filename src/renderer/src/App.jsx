@@ -1,3 +1,7 @@
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import releaseNotes from './assets/0.1.0.md?raw'
+
 function App() {
   const handlePlay = () => {
     // TODO: launch the game (v0.1.0) via the main process
@@ -16,18 +20,9 @@ function App() {
         </header>
 
         <section className="release-notes">
-          <h2>Release Notes</h2>
-          <article className="release-entry">
-            <header className="release-head">
-              <h3>v0.1.0</h3>
-              <time>First release</time>
-            </header>
-            <ul>
-              <li>Initial playable release of the game.</li>
-              <li>Placeholder game notes until real patch notes are published.</li>
-              <li>Play and Settings buttons are placeholders for now.</li>
-            </ul>
-          </article>
+          <div className="markdown">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{releaseNotes}</ReactMarkdown>
+          </div>
         </section>
       </main>
 
