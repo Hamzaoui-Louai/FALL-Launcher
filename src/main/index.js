@@ -2,6 +2,45 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import splashImage from '../../resources/splash.png?asset'
+
+const SPLASH_DURATION_MS = 2500
+
+let splashWindow = null
+let mainWindowCreated = false
+
+function createSplashWindow() {
+  const splash = new BrowserWindow({
+    width: 800,
+    height: 450,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    center: true,
+    show: false
+  })
+
+  splash.loadFile(splashImage)
+
+  splash.on('ready-to-show', () => splash.show())
+  splash.on('closed', () => {
+    splashWindow = null
+  })
+
+  return splash
+}
+
+function showApp() {
+  if (mainWindowCreated) return
+  mainWindowCreated = true
+  createWindow()
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close()
+  }
+}
 
 function createWindow() {
   // Create the browser window.
@@ -52,12 +91,13 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
-  createWindow()
+  splashWindow = createSplashWindow()
+  setTimeout(showApp, SPLASH_DURATION_MS)
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) showApp()
   })
 })
 
