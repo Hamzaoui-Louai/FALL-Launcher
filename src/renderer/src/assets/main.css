@@ -44,7 +44,6 @@ body {
   color: var(--ev-c-text-2);
   border: 1px solid var(--ev-c-gray-1);
   padding: 2px 10px;
-  border-radius: 999px;
 }
 
 .release-notes {
@@ -57,7 +56,6 @@ body {
 .markdown {
   background: var(--ev-c-black-soft);
   border: 1px solid var(--ev-c-gray-3);
-  border-radius: 12px;
   padding: 20px 24px;
 }
 
@@ -164,7 +162,6 @@ body {
   font-size: 13px;
   background: var(--color-background-mute);
   padding: 2px 5px;
-  border-radius: 4px;
   color: var(--ev-c-text-1);
 }
 
@@ -203,7 +200,6 @@ body {
 .btn {
   cursor: pointer;
   border: none;
-  border-radius: 10px;
   font-weight: 700;
   font-size: 14px;
   letter-spacing: 0.05em;
@@ -226,8 +222,8 @@ body {
   padding: 12px 24px;
   font-size: 16px;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #3a7afe, #5f8bff);
-  box-shadow: 0 4px 14px rgba(58, 122, 254, 0.35);
+  background: var(--ev-c-gray-3);
+  color: #5f8bff;
 }
 
 .play-version {

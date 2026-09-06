@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import splashImage from '../../resources/splash.png?asset'
@@ -20,10 +20,21 @@ function createSplashWindow() {
     alwaysOnTop: true,
     skipTaskbar: true,
     center: true,
-    show: false
+    show: false,
+    roundedCorners: false,
+    webPreferences: {
+      zoomFactor: 1
+    }
   })
 
-  splash.loadFile(splashImage)
+  splash.webContents.setZoomFactor(1)
+  splash.webContents.setVisualZoomLevelLimits(1, 1)
+  splash.webContents.on('before-input-event', (event, input) => {
+    if (input.control || input.meta) {
+      event.preventDefault()
+    }
+  })
+  splash.loadFile(join(dirname(splashImage), 'splash.html'))
 
   splash.on('ready-to-show', () => splash.show())
   splash.on('closed', () => {

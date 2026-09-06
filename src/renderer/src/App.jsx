@@ -16,7 +16,7 @@ function App() {
       <main className="content">
         <header className="page-header">
           <h1>FALL Launcher</h1>
-          <span className="version-badge">v0.1.0</span>
+          <span className="version-badge">v1.0</span>
         </header>
 
         <section className="release-notes">
