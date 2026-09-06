@@ -1,15 +1,122 @@
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import releaseNotes from './assets/0.1.0.md?raw'
+import bundledNotes from './assets/0.1.0.md?raw'
 
 function App() {
-  const handlePlay = () => {
-    // TODO: launch the game (v0.1.0) via the main process
+  const [installedVersion, setInstalledVersion] = useState('')
+  const [availableVersion, setAvailableVersion] = useState(null)
+  const [configured, setConfigured] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [releaseNotes, setReleaseNotes] = useState(bundledNotes)
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null)
+  const [notice, setNotice] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState(null)
+
+  async function refresh() {
+    const [check, s] = await Promise.all([window.api.checkForUpdates(), window.api.getSettings()])
+    setConfigured(check.configured)
+    setInstalledVersion(check.installedVersion || '')
+    setAvailableVersion(check.availableVersion)
+    setUpdateAvailable(check.updateAvailable)
+    setSettings(s)
+
+    const shownVersion = check.installedVersion || check.availableVersion
+    if (shownVersion) {
+      const notes = await window.api.fetchReleaseNotes(shownVersion)
+      if (notes) setReleaseNotes(notes)
+    }
   }
 
-  const handleSettings = () => {
-    // TODO: open the settings UI
+  useEffect(() => {
+    // Load remote data once on mount; state updates happen after the async result resolves.
+    let cancelled = false
+    window.api
+      .checkForUpdates()
+      .then(async (check) => {
+        if (cancelled) return
+        const s = await window.api.getSettings()
+        setConfigured(check.configured)
+        setInstalledVersion(check.installedVersion || '')
+        setAvailableVersion(check.availableVersion)
+        setUpdateAvailable(check.updateAvailable)
+        setSettings(s)
+        const shownVersion = check.installedVersion || check.availableVersion
+        if (shownVersion) {
+          const notes = await window.api.fetchReleaseNotes(shownVersion)
+          if (notes) setReleaseNotes(notes)
+        }
+      })
+      .catch((e) => setNotice(`Failed to check for updates: ${e.message}`))
+    const off = window.api.onDownloadProgress(({ received, total }) => {
+      setProgress(total ? Math.round((received / total) * 100) : 0)
+    })
+    return () => {
+      cancelled = true
+      off()
+    }
+  }, [])
+
+  async function installOrUpdate() {
+    if (!availableVersion) return
+    setBusy(true)
+    setNotice(null)
+    setProgress(0)
+    try {
+      await window.api.downloadVersion(availableVersion)
+      setNotice(`Installed version ${availableVersion}`)
+      setProgress(null)
+      await refresh()
+    } catch (e) {
+      setNotice(`Download failed: ${e.message}`)
+    } finally {
+      setBusy(false)
+    }
   }
+
+  async function handlePlay() {
+    const result = await window.api.play()
+    if (!result.ok) setNotice(result.error)
+  }
+
+  function handleSettings() {
+    setSettingsOpen(true)
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false)
+  }
+
+  async function saveSettings() {
+    try {
+      await window.api.setSettings({
+        gamePath: settings.gamePath,
+        savePath: settings.savePath
+      })
+      setSettingsOpen(false)
+      setNotice('Settings saved')
+      await refresh()
+    } catch (e) {
+      setNotice(`Failed to save settings: ${e.message}`)
+    }
+  }
+
+  async function pickPath(key) {
+    const title = key === 'gamePath' ? 'Select game folder' : 'Select save folder'
+    const picked = await window.api.pickDirectory(title, settings[key])
+    if (picked) setSettings({ ...settings, [key]: picked })
+  }
+
+  let playLabel = 'Play'
+  if (!installedVersion) {
+    playLabel = availableVersion ? 'Install' : 'Install'
+  } else if (updateAvailable) {
+    playLabel = 'Update'
+  }
+
+  const canAct = configured && availableVersion && !busy && (updateAvailable || !installedVersion)
 
   return (
     <div className="launcher">
@@ -28,10 +135,32 @@ function App() {
 
       <footer className="bottom-bar">
         <div className="play-zone">
-          <button className="btn btn-play" onClick={handlePlay} type="button">
-            Play
-          </button>
-          <span className="play-version">Game v0.1.0</span>
+          {busy && progress !== null ? (
+            <div className="progress-wrap">
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+              <span className="play-version">Downloading {progress}%</span>
+            </div>
+          ) : (
+            <button
+              className="btn btn-play"
+              onClick={canAct ? installOrUpdate : handlePlay}
+              type="button"
+              disabled={busy}
+            >
+              {playLabel}
+            </button>
+          )}
+          <span className="play-version">
+            {availableVersion
+              ? updateAvailable
+                ? `Game ${availableVersion} available`
+                : `Game ${installedVersion}`
+              : configured
+                ? 'No versions found'
+                : 'Not configured'}
+          </span>
         </div>
         <div className="settings-zone">
           <button className="btn btn-settings" onClick={handleSettings} type="button">
@@ -39,6 +168,58 @@ function App() {
           </button>
         </div>
       </footer>
+
+      {notice && (
+        <div className="toast">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice(null)}>
+            ×
+          </button>
+        </div>
+      )}
+
+      {settingsOpen && settings && (
+        <div className="settings-overlay" onClick={closeSettings}>
+          <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+            <h2>Settings</h2>
+
+            <label className="field">
+              <span>Game download path</span>
+              <div className="path-row">
+                <input
+                  value={settings.gamePath}
+                  onChange={(e) => setSettings({ ...settings, gamePath: e.target.value })}
+                />
+                <button type="button" onClick={() => pickPath('gamePath')}>
+                  Browse
+                </button>
+              </div>
+            </label>
+
+            <label className="field">
+              <span>Game save path</span>
+              <div className="path-row">
+                <input
+                  value={settings.savePath}
+                  onChange={(e) => setSettings({ ...settings, savePath: e.target.value })}
+                />
+                <button type="button" onClick={() => pickPath('savePath')}>
+                  Browse
+                </button>
+              </div>
+            </label>
+
+            <div className="settings-actions">
+              <button className="btn btn-settings" type="button" onClick={closeSettings}>
+                Cancel
+              </button>
+              <button className="btn btn-play" type="button" onClick={saveSettings}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

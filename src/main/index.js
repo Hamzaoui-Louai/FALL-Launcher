@@ -1,13 +1,115 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join, dirname } from 'path'
+import { readdirSync } from 'fs'
+import { spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import splashImage from '../../resources/splash.png?asset'
+import { getSettings, setSettings } from './settings'
+import { getDriveConfig } from './envConfig'
+import { listGameVersions, downloadAndInstall, fetchReleaseNotes, compareVersions } from './drive'
 
 const SPLASH_DURATION_MS = 2500
 
 let splashWindow = null
 let mainWindowCreated = false
+
+function send(event, channel, payload) {
+  if (!event.sender.isDestroyed()) {
+    event.sender.send(channel, payload)
+  }
+}
+
+function registerIpc() {
+  ipcMain.handle('settings:get', () => getSettings())
+  ipcMain.handle('settings:set', (_e, patch) => setSettings(patch))
+
+  ipcMain.handle('drive:versions', async () => {
+    const drive = getDriveConfig()
+    if (!drive.folderId || !drive.apiKey) return { configured: false, versions: [] }
+    const versions = await listGameVersions(drive.folderId, drive.apiKey)
+    return { configured: true, versions }
+  })
+
+  ipcMain.handle('drive:check', async () => {
+    const drive = getDriveConfig()
+    const settings = await getSettings()
+    const base = { configured: !!(drive.folderId && drive.apiKey) }
+    if (!base.configured) {
+      return {
+        ...base,
+        installedVersion: settings.gameVersion,
+        availableVersion: null,
+        updateAvailable: false
+      }
+    }
+    const versions = await listGameVersions(drive.folderId, drive.apiKey)
+    const latest = versions[0] || null
+    const updateAvailable =
+      !!latest &&
+      (!settings.gameVersion || compareVersions(latest.version, settings.gameVersion) > 0)
+    return {
+      ...base,
+      installedVersion: settings.gameVersion,
+      availableVersion: latest ? latest.version : null,
+      updateAvailable
+    }
+  })
+
+  ipcMain.handle('drive:download', async (event, { version }) => {
+    const drive = getDriveConfig()
+    const settings = await getSettings()
+    const versions = await listGameVersions(drive.folderId, drive.apiKey)
+    const file = versions.find((v) => v.version === version)
+    if (!file) throw new Error(`Version ${version} not found in Drive folder`)
+
+    const result = await downloadAndInstall(
+      file,
+      drive.apiKey,
+      settings.gamePath,
+      (received, total) => {
+        send(event, 'drive:progress', { received, total, version })
+      }
+    )
+    await setSettings({ gameVersion: result.version })
+    return result
+  })
+
+  ipcMain.handle('drive:releaseNotes', async (_e, version) => {
+    const drive = getDriveConfig()
+    if (!drive.folderId || !drive.apiKey) return ''
+    return fetchReleaseNotes(drive.folderId, drive.apiKey, version)
+  })
+
+  ipcMain.handle('dir:pick', async (_e, { title, defaultPath }) => {
+    const result = await dialog.showOpenDialog({
+      title,
+      defaultPath,
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('game:play', async () => {
+    const settings = await getSettings()
+    if (!settings.gameVersion) return { ok: false, error: 'No game installed' }
+
+    let exePath = null
+    try {
+      const entries = readdirSync(settings.gamePath)
+      exePath = entries.find((e) => e.toLowerCase().endsWith('.exe')) || null
+    } catch {
+      exePath = null
+    }
+    if (!exePath) return { ok: false, error: 'No executable found in game folder' }
+
+    const fullPath = join(settings.gamePath, exePath)
+    const child = spawn(fullPath, [], { cwd: settings.gamePath, detached: true, stdio: 'ignore' })
+    child.unref()
+    return { ok: true }
+  })
+}
 
 function createSplashWindow() {
   const splash = new BrowserWindow({
@@ -99,8 +201,8 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // IPC
+  registerIpc()
 
   splashWindow = createSplashWindow()
   setTimeout(showApp, SPLASH_DURATION_MS)
