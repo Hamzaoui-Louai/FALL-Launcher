@@ -3,6 +3,26 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import bundledNotes from './assets/0.1.0.md?raw'
 
+function normalizePath(p) {
+  if (!p) return ''
+  const parts = p
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((s) => s !== '' && s !== '.')
+  const out = []
+  for (const part of parts) {
+    if (part === '..') out.pop()
+    else out.push(part)
+  }
+  return out.join('/')
+}
+
+function isSubpath(parent, child) {
+  const a = normalizePath(parent).toLowerCase()
+  const b = normalizePath(child).toLowerCase()
+  return a.length > 0 && (b === a || b.startsWith(a + '/'))
+}
+
 function App() {
   const [installedVersion, setInstalledVersion] = useState('')
   const [availableVersion, setAvailableVersion] = useState(null)
@@ -90,7 +110,10 @@ function App() {
     if (!result.ok) setNotice(result.error)
   }
 
-  function handleSettings() {
+  async function handleSettings() {
+    // Always reload persisted settings so canceled edits are discarded on reopen.
+    const saved = await window.api.getSettings()
+    setSettings(saved)
     setSettingsOpen(true)
   }
 
@@ -128,6 +151,8 @@ function App() {
   const buttonDisabled = checking || busy || !configured || !availableVersion || !playLabel
 
   const canAct = configured && availableVersion && !busy && (updateAvailable || !installedVersion)
+
+  const savePathNested = settings ? isSubpath(settings.gamePath, settings.savePath) : false
 
   let statusText = 'Checking for updates…'
   if (!checking) {
@@ -221,11 +246,23 @@ function App() {
               </div>
             </label>
 
+            {savePathNested && (
+              <div className="field-warning">
+                Warning: this save path is inside the game folder. The game folder is emptied on
+                every update, so your saves would be deleted.
+              </div>
+            )}
+
             <div className="settings-actions">
               <button className="btn btn-settings" type="button" onClick={closeSettings}>
                 Cancel
               </button>
-              <button className="btn btn-play" type="button" onClick={saveSettings}>
+              <button
+                className="btn btn-play"
+                type="button"
+                onClick={saveSettings}
+                disabled={savePathNested}
+              >
                 Save
               </button>
             </div>

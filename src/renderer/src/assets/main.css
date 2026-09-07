@@ -354,6 +354,15 @@ body {
   gap: 8px;
 }
 
+.field-warning {
+  font-size: 12px;
+  color: #ff9d5c;
+  background: rgba(255, 157, 92, 0.08);
+  border: 1px solid rgba(255, 157, 92, 0.35);
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+
 .path-row input {
   flex: 1;
 }
@@ -366,7 +375,7 @@ body {
   color: var(--ev-c-text-1);
   font-weight: 700;
   font-size: 13px;
-  padding: 0 12px;
+  padding: 10px 14px;
 }
 
 .path-row button:hover,
