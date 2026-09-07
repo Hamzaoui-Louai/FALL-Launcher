@@ -35,14 +35,22 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
 
-  async function loadReleaseNotes() {
+  async function loadCachedReleaseNotes() {
     try {
-      await window.api.syncReleaseNotes()
       const notes = await window.api.getReleaseNotes()
       setReleaseNotes(notes)
     } catch {
       setReleaseNotes('')
     }
+  }
+
+  async function loadReleaseNotes() {
+    try {
+      await window.api.syncReleaseNotes()
+    } catch {
+      // Drive unreachable or not configured — keep showing whatever is cached locally.
+    }
+    await loadCachedReleaseNotes()
   }
 
   async function refresh() {
@@ -64,6 +72,12 @@ function App() {
     // Load remote data once on mount; state updates happen after the async result resolves.
     let cancelled = false
     window.api
+      .getReleaseNotes()
+      .then((notes) => {
+        if (!cancelled) setReleaseNotes(notes)
+      })
+      .catch(() => {})
+    window.api
       .checkForUpdates()
       .then(async (check) => {
         if (cancelled) return
@@ -73,7 +87,9 @@ function App() {
         setAvailableVersion(check.availableVersion)
         setUpdateAvailable(check.updateAvailable)
         setSettings(s)
-        await loadReleaseNotes()
+        await window.api.syncReleaseNotes().catch(() => {})
+        const notes = await window.api.getReleaseNotes().catch(() => '')
+        if (!cancelled) setReleaseNotes(notes)
       })
       .catch((e) => setNotice(`Failed to check for updates: ${e.message}`))
       .finally(() => {
