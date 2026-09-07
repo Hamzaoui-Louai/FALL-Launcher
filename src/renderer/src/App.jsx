@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import bundledNotes from './assets/0.1.0.md?raw'
 
 function normalizePath(p) {
   if (!p) return ''
@@ -28,13 +27,23 @@ function App() {
   const [availableVersion, setAvailableVersion] = useState(null)
   const [configured, setConfigured] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
-  const [releaseNotes, setReleaseNotes] = useState(bundledNotes)
+  const [releaseNotes, setReleaseNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(true)
   const [progress, setProgress] = useState(null)
   const [notice, setNotice] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
+
+  async function loadReleaseNotes() {
+    try {
+      await window.api.syncReleaseNotes()
+      const notes = await window.api.getReleaseNotes()
+      setReleaseNotes(notes)
+    } catch {
+      setReleaseNotes('')
+    }
+  }
 
   async function refresh() {
     setChecking(true)
@@ -45,12 +54,7 @@ function App() {
       setAvailableVersion(check.availableVersion)
       setUpdateAvailable(check.updateAvailable)
       setSettings(s)
-
-      const shownVersion = check.installedVersion || check.availableVersion
-      if (shownVersion) {
-        const notes = await window.api.fetchReleaseNotes(shownVersion)
-        if (notes) setReleaseNotes(notes)
-      }
+      await loadReleaseNotes()
     } finally {
       setChecking(false)
     }
@@ -69,11 +73,7 @@ function App() {
         setAvailableVersion(check.availableVersion)
         setUpdateAvailable(check.updateAvailable)
         setSettings(s)
-        const shownVersion = check.installedVersion || check.availableVersion
-        if (shownVersion) {
-          const notes = await window.api.fetchReleaseNotes(shownVersion)
-          if (notes) setReleaseNotes(notes)
-        }
+        await loadReleaseNotes()
       })
       .catch((e) => setNotice(`Failed to check for updates: ${e.message}`))
       .finally(() => {
@@ -173,7 +173,11 @@ function App() {
 
         <section className="release-notes">
           <div className="markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{releaseNotes}</ReactMarkdown>
+            {releaseNotes ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{releaseNotes}</ReactMarkdown>
+            ) : (
+              <p className="notes-empty">No release notes available yet.</p>
+            )}
           </div>
         </section>
       </main>

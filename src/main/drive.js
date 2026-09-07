@@ -51,13 +51,28 @@ export async function listGameVersions(folderId, apiKey) {
     .sort((a, b) => compareVersions(b.version, a.version))
 }
 
-export async function fetchReleaseNotes(folderId, apiKey, version) {
-  const files = await listFiles(folderId, apiKey)
-  const target = files.find((f) => f.name === `${version}.md`)
-  if (!target) return ''
-  const url = `${BASE}/files/${encodeURIComponent(target.id)}?alt=media&key=${encodeURIComponent(apiKey)}`
-  const res = await driveRequest(url)
-  return res.text()
+export function parseNoteVersion(name) {
+  if (!name.endsWith('.md')) return null
+  const v = name.slice(0, -3)
+  return /^\d+\.\d+(\.\d+)?$/.test(v) ? v : null
+}
+
+export async function listReleaseNotes(folderId, apiKey) {
+  const rootFiles = await listFiles(folderId, apiKey)
+  const notesFolder = rootFiles.find(
+    (f) => f.name === 'release-notes' && f.mimeType === 'application/vnd.google-apps.folder'
+  )
+  if (!notesFolder) return []
+  const files = await listFiles(notesFolder.id, apiKey)
+  return files
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      version: parseNoteVersion(f.name),
+      modifiedTime: f.modifiedTime || ''
+    }))
+    .filter((f) => f.version !== null)
+    .sort((a, b) => compareVersions(b.version, a.version))
 }
 
 async function downloadFile(fileId, apiKey, destPath, onProgress) {
@@ -81,6 +96,10 @@ async function downloadFile(fileId, apiKey, destPath, onProgress) {
   } finally {
     ws.destroy()
   }
+}
+
+export async function downloadNoteFile(fileId, apiKey, destPath) {
+  await downloadFile(fileId, apiKey, destPath)
 }
 
 export async function downloadAndInstall(file, apiKey, gamePath, onProgress) {

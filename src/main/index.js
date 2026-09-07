@@ -7,7 +7,8 @@ import icon from '../../resources/icon.png?asset'
 import splashImage from '../../resources/splash.png?asset'
 import { getSettings, setSettings } from './settings'
 import { getDriveConfig } from './envConfig'
-import { listGameVersions, downloadAndInstall, fetchReleaseNotes, compareVersions } from './drive'
+import { listGameVersions, downloadAndInstall, compareVersions } from './drive'
+import { syncReleaseNotes, getAllReleaseNotes } from './releaseNotes'
 
 const SPLASH_DURATION_MS = 2500
 const GAME_EXE = 'FALL !!.exe'
@@ -99,11 +100,8 @@ function registerIpc() {
     return result
   })
 
-  ipcMain.handle('drive:releaseNotes', async (_e, version) => {
-    const drive = getDriveConfig()
-    if (!drive.folderId || !drive.apiKey) return ''
-    return fetchReleaseNotes(drive.folderId, drive.apiKey, version)
-  })
+  ipcMain.handle('release-notes:sync', async () => syncReleaseNotes())
+  ipcMain.handle('release-notes:all', async () => getAllReleaseNotes())
 
   ipcMain.handle('dir:pick', async (_e, { title, defaultPath }) => {
     const result = await dialog.showOpenDialog({

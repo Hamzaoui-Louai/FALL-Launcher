@@ -13,7 +13,8 @@ const api = {
     ipcRenderer.on('drive:progress', listener)
     return () => ipcRenderer.removeListener('drive:progress', listener)
   },
-  fetchReleaseNotes: (version) => ipcRenderer.invoke('drive:releaseNotes', version),
+  syncReleaseNotes: () => ipcRenderer.invoke('release-notes:sync'),
+  getReleaseNotes: () => ipcRenderer.invoke('release-notes:all'),
   pickDirectory: (title, defaultPath) => ipcRenderer.invoke('dir:pick', { title, defaultPath }),
   play: () => ipcRenderer.invoke('game:play')
 }
