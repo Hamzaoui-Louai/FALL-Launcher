@@ -10,23 +10,29 @@ function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [releaseNotes, setReleaseNotes] = useState(bundledNotes)
   const [busy, setBusy] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [progress, setProgress] = useState(null)
   const [notice, setNotice] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
 
   async function refresh() {
-    const [check, s] = await Promise.all([window.api.checkForUpdates(), window.api.getSettings()])
-    setConfigured(check.configured)
-    setInstalledVersion(check.installedVersion || '')
-    setAvailableVersion(check.availableVersion)
-    setUpdateAvailable(check.updateAvailable)
-    setSettings(s)
+    setChecking(true)
+    try {
+      const [check, s] = await Promise.all([window.api.checkForUpdates(), window.api.getSettings()])
+      setConfigured(check.configured)
+      setInstalledVersion(check.installedVersion || '')
+      setAvailableVersion(check.availableVersion)
+      setUpdateAvailable(check.updateAvailable)
+      setSettings(s)
 
-    const shownVersion = check.installedVersion || check.availableVersion
-    if (shownVersion) {
-      const notes = await window.api.fetchReleaseNotes(shownVersion)
-      if (notes) setReleaseNotes(notes)
+      const shownVersion = check.installedVersion || check.availableVersion
+      if (shownVersion) {
+        const notes = await window.api.fetchReleaseNotes(shownVersion)
+        if (notes) setReleaseNotes(notes)
+      }
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -50,6 +56,9 @@ function App() {
         }
       })
       .catch((e) => setNotice(`Failed to check for updates: ${e.message}`))
+      .finally(() => {
+        if (!cancelled) setChecking(false)
+      })
     const off = window.api.onDownloadProgress(({ received, total }) => {
       setProgress(total ? Math.round((received / total) * 100) : 0)
     })
@@ -109,14 +118,25 @@ function App() {
     if (picked) setSettings({ ...settings, [key]: picked })
   }
 
-  let playLabel = 'Play'
-  if (!installedVersion) {
-    playLabel = availableVersion ? 'Install' : 'Install'
-  } else if (updateAvailable) {
-    playLabel = 'Update'
+  let playLabel = '…'
+  if (!checking) {
+    if (!installedVersion) playLabel = 'Install'
+    else if (updateAvailable) playLabel = 'Update'
+    else playLabel = 'Play'
   }
 
+  const buttonDisabled = checking || busy || !configured || !availableVersion || !playLabel
+
   const canAct = configured && availableVersion && !busy && (updateAvailable || !installedVersion)
+
+  let statusText = 'Checking for updates…'
+  if (!checking) {
+    if (!configured) statusText = 'Not configured'
+    else if (!availableVersion) statusText = 'No versions found'
+    else if (!installedVersion) statusText = `Game ${availableVersion} available`
+    else if (updateAvailable) statusText = `Update available: v${availableVersion}`
+    else statusText = `Game ${installedVersion}`
+  }
 
   return (
     <div className="launcher">
@@ -147,20 +167,12 @@ function App() {
               className="btn btn-play"
               onClick={canAct ? installOrUpdate : handlePlay}
               type="button"
-              disabled={busy}
+              disabled={buttonDisabled}
             >
               {playLabel}
             </button>
           )}
-          <span className="play-version">
-            {availableVersion
-              ? updateAvailable
-                ? `Game ${availableVersion} available`
-                : `Game ${installedVersion}`
-              : configured
-                ? 'No versions found'
-                : 'Not configured'}
-          </span>
+          <span className="play-version">{statusText}</span>
         </div>
         <div className="settings-zone">
           <button className="btn btn-settings" onClick={handleSettings} type="button">

@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { readdirSync } from 'fs'
 import { spawn } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -10,6 +10,7 @@ import { getDriveConfig } from './envConfig'
 import { listGameVersions, downloadAndInstall, fetchReleaseNotes, compareVersions } from './drive'
 
 const SPLASH_DURATION_MS = 2500
+const GAME_EXE = 'FALL !!.exe'
 
 let splashWindow = null
 let mainWindowCreated = false
@@ -18,6 +19,29 @@ function send(event, channel, payload) {
   if (!event.sender.isDestroyed()) {
     event.sender.send(channel, payload)
   }
+}
+
+function findGameExecutable(dir) {
+  const exes = []
+  const queue = [dir]
+  while (queue.length) {
+    const current = queue.shift()
+    let entries
+    try {
+      entries = readdirSync(current, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      const full = join(current, entry.name)
+      if (entry.isDirectory()) queue.push(full)
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith('.exe')) exes.push(full)
+    }
+  }
+  const exact = exes.find((f) => basename(f).toLowerCase() === GAME_EXE.toLowerCase())
+  if (exact) return exact
+  const fall = exes.find((f) => basename(f).toLowerCase().startsWith('fall'))
+  return fall || exes[0] || null
 }
 
 function registerIpc() {
@@ -95,17 +119,10 @@ function registerIpc() {
     const settings = await getSettings()
     if (!settings.gameVersion) return { ok: false, error: 'No game installed' }
 
-    let exePath = null
-    try {
-      const entries = readdirSync(settings.gamePath)
-      exePath = entries.find((e) => e.toLowerCase().endsWith('.exe')) || null
-    } catch {
-      exePath = null
-    }
-    if (!exePath) return { ok: false, error: 'No executable found in game folder' }
+    const fullPath = findGameExecutable(settings.gamePath)
+    if (!fullPath) return { ok: false, error: 'No executable found in game folder' }
 
-    const fullPath = join(settings.gamePath, exePath)
-    const child = spawn(fullPath, [], { cwd: settings.gamePath, detached: true, stdio: 'ignore' })
+    const child = spawn(fullPath, [], { cwd: dirname(fullPath), detached: true, stdio: 'ignore' })
     child.unref()
     return { ok: true }
   })
